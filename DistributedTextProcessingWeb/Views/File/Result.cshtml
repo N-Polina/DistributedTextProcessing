@@ -1,0 +1,88 @@
+﻿@model DistributedTextProcessingWeb.Models.CalculationResult
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты обработки</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #fffaf0;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            margin: 20px auto;
+            max-width: 800px;
+            padding: 20px;
+            border: 2px solid #ffa500;
+            border-radius: 10px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        h1, h2 {
+            color: #ff4500;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        ul li {
+            background-color: #fff8dc;
+            margin: 5px 0;
+            padding: 10px;
+            border: 1px solid #ffa500;
+            border-radius: 5px;
+        }
+        a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #ffa500;
+            color: white;
+            text-decoration: none;
+            font-size: 16px;
+            text-align: center;
+        }
+        a:hover {
+            background-color: #ff8c00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Результат обработки файла</h1>
+
+        <h2>Точки:</h2>
+        <ul>
+            @foreach (var point in Model.Points)
+            {
+                <li>@point</li>
+            }
+        </ul>
+
+        <h2>Углы:</h2>
+        <ul>
+            @foreach (var angle in Model.Angles)
+            {
+                <li>@angle</li>
+            }
+        </ul>
+
+        <h2>Площади:</h2>
+        <ul>
+            @foreach (var area in Model.Areas)
+            {
+                <li>@area</li>
+            }
+        </ul>
+
+        <a href="/File/Index">Загрузить другой файл</a>
+    </div>
+</body>
+</html>
