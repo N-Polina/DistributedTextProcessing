@@ -16,7 +16,7 @@
 
         public async Task<int> AddAsync(int a, int b)
         {
-            await Task.Delay(50); // Симуляция асинхронной работы
+            await Task.Delay(50); 
             return a + b;
         }
     }

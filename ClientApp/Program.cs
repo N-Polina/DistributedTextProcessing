@@ -22,7 +22,7 @@ class Client
             }
 
             byte[] fileData = File.ReadAllBytes(filePath);
-            int chunkSize = 1024; // Размер пакета (макс. 1024 байта)
+            int chunkSize = 1024;
 
             Console.WriteLine("Отправка файла...");
             for (int i = 0; i < fileData.Length; i += chunkSize)
@@ -33,6 +33,9 @@ class Client
 
                 client.Send(chunk, chunk.Length, serverIP, serverPort);
             }
+
+            // Сигнал завершения передачи
+            client.Send(new byte[0], 0, serverIP, serverPort);
 
             Console.WriteLine("Файл отправлен, ожидание ответа...");
             IPEndPoint serverEndpoint = new IPEndPoint(IPAddress.Any, 0);

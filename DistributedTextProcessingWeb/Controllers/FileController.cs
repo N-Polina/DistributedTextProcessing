@@ -1,6 +1,7 @@
 ﻿using DistributedTextProcessingWeb.Models;
 using Microsoft.AspNetCore.Mvc;
-
+using System.IO;
+using MPI;
 
 namespace DistributedTextProcessingWeb.Controllers
 {
@@ -32,10 +33,9 @@ namespace DistributedTextProcessingWeb.Controllers
                     await file.CopyToAsync(stream);
                 }
 
-                // Обрабатываем файл и получаем результаты
-                var result = ProcessFile(filePath);
+                // Обрабатываем файл с использованием MPI
+                var result = ProcessFileWithMPI(filePath);
 
-                // Передаем данные в представление
                 return View("Result", result);
             }
             catch (Exception ex)
@@ -44,46 +44,98 @@ namespace DistributedTextProcessingWeb.Controllers
             }
         }
 
-        [HttpGet("Result")]
-        public IActionResult Result()
+        private CalculationResult ProcessFileWithMPI(string filePath)
         {
-            return View();
-        }
-
-        /// <summary>
-        /// Обрабатывает файл и возвращает результат вычислений.
-        /// </summary>
-        private CalculationResult ProcessFile(string filePath)
-        {
-            var lines = System.IO.File.ReadLines(filePath).ToList();
-
-            // Преобразование строк в точки
-            var points = lines.Select(line => line.Split(' '))
-                              .Select(parts => $"{parts[0]} {parts[1]} {parts[2]}")
-                              .ToList();
+            var lines = System.IO.File.ReadAllLines(filePath).ToList();
+            var points = lines.Select(line => line.Split(' ')
+                              .Select(double.Parse)
+                              .ToArray()).ToList();
 
             var angles = new List<string>();
             var areas = new List<string>();
 
-            for (int i = 0; i < points.Count; i++)
+            // Создаем массив аргументов для MPI
+            string[] mpiArgs = System.Environment.GetCommandLineArgs();
+
+            using (new MPI.Environment(ref mpiArgs))
             {
-                for (int j = i + 1; j < points.Count; j++)
+                Intracommunicator comm = Communicator.world;
+                int rank = comm.Rank;
+                int size = comm.Size;
+
+                int chunkSize = points.Count / size;
+                int start = rank * chunkSize;
+                int end = (rank == size - 1) ? points.Count : start + chunkSize;
+
+                var localAreas = new List<string>();
+                var localAngles = new List<string>();
+
+                for (int i = start; i < end - 2; i++)
                 {
-                    for (int k = j + 1; k < points.Count; k++)
+                    for (int j = i + 1; j < points.Count - 1; j++)
                     {
-                        // Пример данных, вместо настоящих вычислений
-                        angles.Add($"Точки: {points[i]}, {points[j]}, {points[k]} | Угол1: 45° | Угол2: 135°");
-                        areas.Add($"Точки: {points[i]}, {points[j]}, {points[k]} | Площадь: 120.5");
+                        for (int k = j + 1; k < points.Count; k++)
+                        {
+                            double area = CalculateParallelogramArea(points[i], points[j], points[k]);
+                            localAreas.Add($"Точки: {FormatPoint(points[i])}, {FormatPoint(points[j])}, {FormatPoint(points[k])} | Площадь: {area:F2}");
+
+                            double angle = CalculateAngle(points[i], points[j], points[k]);
+                            localAngles.Add($"Точки: {FormatPoint(points[i])}, {FormatPoint(points[j])}, {FormatPoint(points[k])} | Угол: {angle:F2}°");
+                        }
                     }
+                }
+
+                // Сбор результатов
+                var allAreas = comm.Gather(localAreas, 0);
+                var allAngles = comm.Gather(localAngles, 0);
+
+                if (comm.Rank == 0)
+                {
+                    foreach (var areaList in allAreas)
+                        areas.AddRange(areaList);
+
+                    foreach (var angleList in allAngles)
+                        angles.AddRange(angleList);
                 }
             }
 
             return new CalculationResult
             {
-                Points = points,
+                Points = points.Select(p => FormatPoint(p)).ToList(),
                 Angles = angles,
                 Areas = areas
             };
+        }
+
+        private double CalculateParallelogramArea(double[] p1, double[] p2, double[] p3)
+        {
+            double[] AB = { p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
+            double[] AC = { p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2] };
+
+            double[] crossProduct = {
+                AB[1] * AC[2] - AB[2] * AC[1],
+                AB[2] * AC[0] - AB[0] * AC[2],
+                AB[0] * AC[1] - AB[1] * AC[0]
+            };
+
+            return Math.Sqrt(crossProduct.Sum(c => c * c));
+        }
+
+        private double CalculateAngle(double[] p1, double[] p2, double[] p3)
+        {
+            double[] AB = { p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
+            double[] AC = { p3[0] - p1[0], p3[1] - p1[1], p3[2] - p1[2] };
+
+            double dotProduct = AB.Zip(AC, (a, b) => a * b).Sum();
+            double magnitudeAB = Math.Sqrt(AB.Sum(a => a * a));
+            double magnitudeAC = Math.Sqrt(AC.Sum(a => a * a));
+
+            return Math.Acos(dotProduct / (magnitudeAB * magnitudeAC)) * (180.0 / Math.PI);
+        }
+
+        private string FormatPoint(double[] point)
+        {
+            return $"({point[0]}, {point[1]}, {point[2]})";
         }
     }
 }
